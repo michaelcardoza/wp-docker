@@ -1,0 +1,1 @@
+Remplazar .env.example por .env

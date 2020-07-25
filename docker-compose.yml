@@ -1,0 +1,100 @@
+version: "3"
+
+services:
+  database:
+    image: mysql:latest
+    container_name: ${APP_NAME}_database
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - wp_net
+
+  # docker exec -ti [CONTAINER NAME] sh -c "chown -R www-data:www-data wp-content"
+  wordpress:
+    image: wordpress:latest
+    container_name: ${APP_NAME}_wordpress
+    volumes:
+      - "./config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+      - wp_data:/var/www/html
+      - "./app:/var/www/html/wp-content/themes/custom-theme/app:rw"
+      - "./wp-content/uploads:/var/www/html/wp-content/uploads:rw"
+    ports:
+      - 80:80
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: database:3306
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        /* wpconfig */
+        define( 'FS_METHOD', 'direct' );
+    depends_on:
+      - database
+    networks:
+      - wp_net
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: ${APP_NAME}_phpmyadmin
+    volumes:
+      - "./config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+    ports:
+      - 9090:80
+    environment:
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PMA_HOST: database
+    depends_on:
+      - database
+    networks:
+      - wp_net
+
+  cli:
+    image: wordpress:cli
+    container_name: ${APP_NAME}_cli
+    user: xfs
+    volumes:
+      - wp_data:/var/www/html:rw
+    depends_on:
+      - database
+      - wordpress
+    command: "tail -f /dev/null"
+    networks:
+      - wp_net
+
+  composer:
+    image: composer:latest
+    container_name: ${APP_NAME}_composer
+    volumes:
+      - "./app:/var/www/html/wp-content/themes/custom-theme/app:rw"
+    working_dir: "/var/www/html/wp-content/themes/custom-theme/app"
+    networks:
+      - wp_net
+
+  npm:
+    image: node:14
+    container_name: ${APP_NAME}_npm
+    volumes:
+      - "./app:/var/www/html/wp-content/themes/custom-theme/app:rw"
+    working_dir: "/var/www/html/wp-content/themes/custom-theme/app"
+    entrypoint: ['npm']
+    networks:
+      - wp_net
+
+networks:
+  wp_net: {}
+
+volumes:
+  db_data: {}
+  wp_data: {}
